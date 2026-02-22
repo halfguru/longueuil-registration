@@ -26,16 +26,16 @@ pip install -e ".[dev]"
 ### Running the Application
 ```bash
 # Run via CLI
-longueuil register
+longueuil
 
 # Run with uv
-uv run longueuil register
+uv run longueuil
 
 # Run with options
-uv run longueuil register --headless --timeout 300
+uv run longueuil --headless --timeout 300
 
 # Run with custom config
-uv run longueuil register --config my-config.toml
+uv run longueuil --config my-config.toml
 ```
 
 ### Linting and Formatting
@@ -119,8 +119,7 @@ str | None          # Not Optional[str]
 - **Private methods**: prefix underscore (`_navigate_and_search`)
 
 ### Configuration
-Use pydantic-settings for all configuration:
-- Support both TOML config files and environment variables
+- Configuration via TOML file only (`config.toml`)
 - Family members as list of nested models
 - All settings have sensible defaults
 
@@ -150,8 +149,7 @@ logger.error(f"Failed: {e}")
 5. Use CSS selectors over XPaths
 
 ### Security
-- Never commit `config.toml` or `.env` (in .gitignore)
-- Use `config.example.toml` and `.env.example` for templates
+- Never commit `config.toml` (in .gitignore)
 - No hardcoded credentials in source code
 
 ## File Patterns
@@ -163,8 +161,7 @@ logger.error(f"Failed: {e}")
 
 ### Adding new configuration
 1. Add field to `Settings` or create new pydantic model
-2. Add to `config.example.toml`
-3. Add to `.env.example` if applicable
+2. Update `config.toml` with the new field
 
 ## Dependencies
 

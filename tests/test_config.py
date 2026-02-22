@@ -1,5 +1,3 @@
-import pytest
-
 from longueuil_registration.config import FamilyMember, Settings
 
 

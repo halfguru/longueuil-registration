@@ -1,8 +1,9 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 
-from playwright.async_api import async_playwright
+from playwright.async_api import Page, async_playwright
 
 from .config import Settings
 
@@ -11,10 +12,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Selectors:
-    checkbox: str
     search_button: str
-    page_link: str
-    activity_button_template: str
     cart_button: str
     dossier_input_template: str
     nip_input_template: str
@@ -22,10 +20,7 @@ class Selectors:
 
 
 DEFAULT_SELECTORS = Selectors(
-    checkbox="input[type='checkbox'] + span:text-is('{}')",
     search_button="#ctlBlocRecherche_ctlRechercher",
-    page_link="#ctlGrille_ctlPagerHaut_ctlListePages_ctl12_ctlLienPage",
-    activity_button_template="#ctlGrille_ctlGrilleActivite_ctlListeAct_ctl0{i}_ctlLigneAct_ctlSelectionPanier_ctlImageButtonSelecteur",
     cart_button="#ctlGrille_ctlMenuActionsBas_ctlAppelPanierIdent",
     dossier_input_template="#ctlPanierActivites_ctlActivites_ctl{i:02d}_ctlRow_ctlListeIdentification_ctlListe_itm0_ctlBloc_ctlDossier",
     nip_input_template="#ctlPanierActivites_ctlActivites_ctl{i:02d}_ctlRow_ctlListeIdentification_ctlListe_itm0_ctlBloc_ctlNip",
@@ -46,14 +41,13 @@ class RegistrationBot:
             page = await context.new_page()
 
             try:
-                await self._navigate_and_search(page)
-                success = await self._wait_for_availability(page)
+                await self._navigate_to_domain(page)
+                success = await self._wait_and_select_activity(page)
 
                 if not success:
                     logger.error("Registration timed out")
                     return False
 
-                await self._select_activities(page)
                 await self._fill_credentials(page)
                 await self._submit(page)
 
@@ -62,63 +56,115 @@ class RegistrationBot:
 
             except Exception as e:
                 logger.error(f"Registration failed: {e}")
+                screenshot_path = f"error-{datetime.now().strftime('%Y%m%d-%H%M%S')}.png"
+                await page.screenshot(path=screenshot_path)
+                logger.info(f"Screenshot saved to {screenshot_path}")
                 return False
             finally:
                 await browser.close()
 
-    async def _navigate_and_search(self, page) -> None:
+    async def _navigate_to_domain(self, page: Page) -> None:
         logger.info("Opening registration website...")
-        await page.goto(self.settings.registration_url)
+        await page.goto(self.settings.registration_url, wait_until="networkidle")
 
-        logger.info(f"Selecting activity category: {self.settings.activity_category}")
-        checkbox_selector = self.selectors.checkbox.format(
-            self.settings.activity_category
-        )
-        await page.locator(checkbox_selector).click()
+        logger.info("Opening Domaines tab...")
+        await page.get_by_role("link", name="Domaines").click()
+        await page.wait_for_timeout(500)
+
+        logger.info(f"Selecting domain: {self.settings.domain}")
+        await page.get_by_text(self.settings.domain, exact=True).first.click()
 
         logger.info("Clicking search button...")
         await page.locator(self.selectors.search_button).click()
+        await page.wait_for_load_state("networkidle")
 
-        logger.info("Navigating to results page...")
-        await page.locator(self.selectors.page_link).click()
-
-    async def _wait_for_availability(self, page) -> bool:
-        logger.info("Waiting for registration to become available...")
+    async def _wait_and_select_activity(self, page: Page) -> bool:
+        logger.info(f"Searching for activity: {self.settings.activity_name}")
         start_time = asyncio.get_running_loop().time()
 
         while asyncio.get_running_loop().time() - start_time < self.settings.timeout:
-            try:
-                button = await page.wait_for_selector(
-                    self.selectors.activity_button_template.format(i=1),
-                    timeout=3000,
-                )
-                if await button.is_enabled():
-                    src = await button.get_attribute("src")
-                    if src and "ic_InscrNotNow.gif" not in src:
-                        logger.info("Registration is now available!")
-                        return True
-            except Exception:
-                pass
+            activity_found = await self._find_and_select_activity(page)
 
-            logger.info("Registration not available yet, refreshing...")
+            if activity_found:
+                logger.info("Activity found and selected!")
+                return True
+
+            logger.info("Activity not available yet, refreshing...")
             await asyncio.sleep(self.settings.refresh_interval)
-            await page.reload()
+            await page.reload(wait_until="networkidle")
 
         return False
 
-    async def _select_activities(self, page) -> None:
-        logger.info("Selecting activities...")
-        num_activities = len(self.settings.family_members)
+    async def _find_and_select_activity(self, page: Page) -> bool:
+        """Search for activity across all pages and select it if available."""
 
-        for i in range(1, num_activities + 1):
-            selector = self.selectors.activity_button_template.format(i=i)
-            await page.locator(selector).click()
-            await asyncio.sleep(0.1)
+        # Check current page first
+        if await self._try_select_on_page(page):
+            return True
 
-        logger.info("Adding to cart...")
-        await page.locator(self.selectors.cart_button).click()
+        # Try pagination - find page links
+        page_links = page.locator("a[id*='ctlLienPage']")
+        num_pages = await page_links.count()
 
-    async def _fill_credentials(self, page) -> None:
+        if num_pages == 0:
+            return False
+
+        logger.info(f"Checking {num_pages} pages for activity...")
+
+        for i in range(num_pages):
+            # Re-locate page links after potential page changes
+            page_links = page.locator("a[id*='ctlLienPage']")
+            if i >= await page_links.count():
+                break
+
+            await page_links.nth(i).click()
+            await page.wait_for_load_state("networkidle")
+            await page.wait_for_timeout(500)
+
+            if await self._try_select_on_page(page):
+                return True
+
+        return False
+
+    async def _try_select_on_page(self, page: Page) -> bool:
+        """Try to find and select the activity on current page."""
+        activity_name = self.settings.activity_name.lower()
+
+        # Find all activity rows
+        rows = page.locator("tr[id*='ctlListeAct']")
+        count = await rows.count()
+
+        for i in range(count):
+            row = rows.nth(i)
+            row_text = await row.inner_text()
+
+            if activity_name in row_text.lower():
+                # Found the activity - look for the selection button
+                select_btn = row.locator("input[type='image'], img[id*='Selecteur']")
+                btn_count = await select_btn.count()
+
+                if btn_count > 0:
+                    btn = select_btn.first
+                    # Check if it's available (not disabled)
+                    src = await btn.get_attribute("src") or ""
+                    if "NotNow" in src or "Complet" in src:
+                        logger.info(f"Found activity but not available: {src}")
+                        return False
+
+                    logger.info("Found activity, clicking select button...")
+                    await btn.click()
+                    await page.wait_for_timeout(500)
+
+                    # Add to cart
+                    logger.info("Adding to cart...")
+                    await page.locator(self.selectors.cart_button).click()
+                    await page.wait_for_load_state("networkidle")
+
+                    return True
+
+        return False
+
+    async def _fill_credentials(self, page: Page) -> None:
         logger.info("Filling credentials...")
         for i, member in enumerate(self.settings.family_members):
             dossier_selector = self.selectors.dossier_input_template.format(i=i)
@@ -128,7 +174,7 @@ class RegistrationBot:
             await page.locator(nip_selector).fill(member.nip)
             await asyncio.sleep(0.1)
 
-    async def _submit(self, page) -> None:
+    async def _submit(self, page: Page) -> None:
         logger.info("Submitting registration...")
         await page.locator(self.selectors.validate_button).click()
         await asyncio.sleep(5)
