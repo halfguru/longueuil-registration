@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import typer
@@ -20,14 +21,14 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-@app.command()
+@app.callback(invoke_without_command=True)
 def register(
     config: Path = typer.Option(
         Path("config.toml"),
         "--config",
         "-c",
         help="Path to configuration file",
-        exists=False,
+        exists=True,
     ),
     headless: bool = typer.Option(
         None,
@@ -51,14 +52,8 @@ def register(
     ),
 ) -> None:
     """Run the registration bot."""
-    if config.exists():
-        console.print(f"[blue]Loading config from {config}[/blue]")
-        settings = Settings.from_toml(config)
-    else:
-        console.print(
-            "[yellow]No config file found, using environment variables[/yellow]"
-        )
-        settings = Settings()
+    console.print(f"[blue]Loading config from {config}[/blue]")
+    settings = Settings.from_toml(config)
 
     if headless is not None:
         settings.headless = headless
@@ -67,12 +62,9 @@ def register(
 
     if not settings.family_members:
         console.print("[red]Error: No family members configured[/red]")
-        console.print("Create a config.toml file or set environment variables")
         raise typer.Exit(1)
 
-    console.print(
-        f"[green]Registering {len(settings.family_members)} family member(s)[/green]"
-    )
+    console.print(f"[green]Registering {len(settings.family_members)} family member(s)[/green]")
     for member in settings.family_members:
         console.print(f"  - {member.name}")
 
@@ -82,11 +74,9 @@ def register(
     if success:
         console.print("[green bold]Registration completed![/green bold]")
     else:
-        console.print("[red bold]Registration failed[/red bold]")
+        console.print("[bold red]Registration failed[/]")
         raise typer.Exit(1)
 
-
-import asyncio
 
 if __name__ == "__main__":
     app()

@@ -5,20 +5,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class FamilyMember(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MEMBER_")
-
     name: str = Field(..., description="Family member name for logging")
     dossier: str = Field(..., description="Dossier number")
     nip: str = Field(..., description="NIP (phone number)")
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        env_prefix="LONGUEUIL_",
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(env_prefix="LONGUEUIL_")
 
     registration_url: str = Field(
         default="https://loisir.longueuil.quebec/inscription/Pages/Anonyme/Resultat/Page.fr.aspx?m=1",
@@ -26,12 +19,14 @@ class Settings(BaseSettings):
     )
     headless: bool = Field(default=False, description="Run browser in headless mode")
     timeout: int = Field(default=600, description="Timeout in seconds")
-    refresh_interval: float = Field(
-        default=5.0, description="Refresh interval in seconds"
-    )
-    activity_category: str = Field(
+    refresh_interval: float = Field(default=5.0, description="Refresh interval in seconds")
+    domain: str = Field(
         default="Activités aquatiques (Vieux-Longueuil)",
-        description="Activity category to select",
+        description="Domain/category to select (e.g., 'Activités aquatiques (Vieux-Longueuil)')",
+    )
+    activity_name: str = Field(
+        default="",
+        description="Activity name to search for (e.g., 'Parent-bébé', 'Niveau 1')",
     )
     family_members: list[FamilyMember] = Field(default_factory=list)
 
