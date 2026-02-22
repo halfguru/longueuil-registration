@@ -1,0 +1,92 @@
+from pathlib import Path
+
+import typer
+from rich.console import Console
+
+from . import __version__
+from .config import Settings
+from .registration import RegistrationBot
+
+app = typer.Typer(
+    name="longueuil-registration",
+    help="Automate swimming class registration at Longueuil's recreation website",
+)
+console = Console()
+
+
+def version_callback(value: bool) -> None:
+    if value:
+        console.print(f"longueuil-registration version {__version__}")
+        raise typer.Exit()
+
+
+@app.command()
+def register(
+    config: Path = typer.Option(
+        Path("config.toml"),
+        "--config",
+        "-c",
+        help="Path to configuration file",
+        exists=False,
+    ),
+    headless: bool = typer.Option(
+        None,
+        "--headless",
+        "--no-headless",
+        help="Run browser in headless mode",
+    ),
+    timeout: int = typer.Option(
+        None,
+        "--timeout",
+        "-t",
+        help="Timeout in seconds",
+    ),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-v",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version and exit",
+    ),
+) -> None:
+    """Run the registration bot."""
+    if config.exists():
+        console.print(f"[blue]Loading config from {config}[/blue]")
+        settings = Settings.from_toml(config)
+    else:
+        console.print(
+            "[yellow]No config file found, using environment variables[/yellow]"
+        )
+        settings = Settings()
+
+    if headless is not None:
+        settings.headless = headless
+    if timeout is not None:
+        settings.timeout = timeout
+
+    if not settings.family_members:
+        console.print("[red]Error: No family members configured[/red]")
+        console.print("Create a config.toml file or set environment variables")
+        raise typer.Exit(1)
+
+    console.print(
+        f"[green]Registering {len(settings.family_members)} family member(s)[/green]"
+    )
+    for member in settings.family_members:
+        console.print(f"  - {member.name}")
+
+    bot = RegistrationBot(settings)
+    success = asyncio.run(bot.run())
+
+    if success:
+        console.print("[green bold]Registration completed![/green bold]")
+    else:
+        console.print("[red bold]Registration failed[/red bold]")
+        raise typer.Exit(1)
+
+
+import asyncio
+
+if __name__ == "__main__":
+    app()
