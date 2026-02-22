@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     def from_toml(cls, path: Path) -> "Settings":
         import tomllib
 
-        with open(path, "rb") as f:
+        with path.open("rb") as f:
             data = tomllib.load(f)
 
         members_data = data.pop("family_members", [])

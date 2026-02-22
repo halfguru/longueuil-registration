@@ -51,6 +51,7 @@ def register(
         help="Show version and exit",
     ),
 ) -> None:
+    _ = version  # Used via callback
     """Run the registration bot."""
     console.print(f"[blue]Loading config from {config}[/blue]")
     settings = Settings.from_toml(config)
