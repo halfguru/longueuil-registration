@@ -1,4 +1,6 @@
-# longueuil-aweille
+# longueuil-aweille 🏛️
+
+[![Longueuil](https://img.shields.io/badge/Longueuil-Québec-blue)](https://longueuil.quebec)
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-1.40%2B-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/python/)
@@ -22,10 +24,11 @@ Vous connaissez le drill:
 ## Features
 
 - 🎯 Auto-register for any municipal activity (swimming, art, sports, whatever)
-- 👨‍👩‍👧‍👦 Support for multiple family members
+- 👥 Support for multiple participants
 - 🔄 Auto-retry when registration isn't open yet
 - 📝 Simple TOML configuration
 - 🖥️ CLI with rich output
+- 🇶🇦 Optional Quebec French vibes
 
 ## Installation
 
@@ -54,7 +57,7 @@ refresh_interval = 5.0
 domain = "Activités aquatiques (Vieux-Longueuil)"
 activity_name = "Parent-bébé"
 
-[[family_members]]
+[[participants]]
 name = "Votre Enfant"
 dossier = "01234567890123"
 nip = "5145551234"
@@ -69,7 +72,7 @@ nip = "5145551234"
 | `refresh_interval` | Seconds between page refreshes | `5.0` |
 | `domain` | Activity domain/category | Required |
 | `activity_name` | Activity name to search for | Required |
-| `family_members` | List of family members to register | Required |
+| `participants` | List of participants to register | Required |
 
 ### Finding Your Domain and Activity
 

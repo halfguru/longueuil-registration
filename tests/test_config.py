@@ -1,11 +1,11 @@
-from longueuil_aweille.config import FamilyMember, Settings
+from longueuil_aweille.config import Participant, Settings
 
 
-def test_family_member_creation():
-    member = FamilyMember(name="Test", dossier="01234567890123", nip="5145551234")
-    assert member.name == "Test"
-    assert member.dossier == "01234567890123"
-    assert member.nip == "5145551234"
+def test_participant_creation():
+    participant = Participant(name="Test", dossier="01234567890123", nip="5145551234")
+    assert participant.name == "Test"
+    assert participant.dossier == "01234567890123"
+    assert participant.nip == "5145551234"
 
 
 def test_settings_defaults():
@@ -13,7 +13,7 @@ def test_settings_defaults():
     assert settings.headless is False
     assert settings.timeout == 600
     assert settings.refresh_interval == 5.0
-    assert settings.family_members == []
+    assert settings.participants == []
 
 
 def test_settings_from_env(monkeypatch):
@@ -29,11 +29,11 @@ def test_settings_custom_values():
     settings = Settings(
         headless=True,
         timeout=120,
-        family_members=[
-            FamilyMember(name="Child 1", dossier="11111111111111", nip="5141111111"),
+        participants=[
+            Participant(name="Participant 1", dossier="11111111111111", nip="5141111111"),
         ],
     )
     assert settings.headless is True
     assert settings.timeout == 120
-    assert len(settings.family_members) == 1
-    assert settings.family_members[0].name == "Child 1"
+    assert len(settings.participants) == 1
+    assert settings.participants[0].name == "Participant 1"

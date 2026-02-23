@@ -178,12 +178,12 @@ class RegistrationBot:
 
     async def _fill_credentials(self, page: Page) -> None:
         logger.info("Filling credentials...")
-        for i, member in enumerate(self.settings.family_members):
+        for i, participant in enumerate(self.settings.participants):
             dossier_selector = self.selectors.dossier_input_template.format(i=i)
             nip_selector = self.selectors.nip_input_template.format(i=i)
 
-            await page.locator(dossier_selector).fill(member.dossier)
-            await page.locator(nip_selector).fill(member.nip)
+            await page.locator(dossier_selector).fill(participant.dossier)
+            await page.locator(nip_selector).fill(participant.nip)
             await asyncio.sleep(0.1)
 
     async def _submit(self, page: Page) -> RegistrationStatus:

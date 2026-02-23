@@ -3,6 +3,8 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from . import __version__
 from .config import Settings
@@ -53,7 +55,8 @@ def register(
 ) -> None:
     _ = version
     """Run the registration bot. Aweille!"""
-    console.print(f"[blue]Loading config from {config}[/blue]")
+    console.print()
+    console.print(f"[dim]Loading config from {config}[/dim]")
     settings = Settings.from_toml(config)
 
     if headless is not None:
@@ -61,30 +64,60 @@ def register(
     if timeout is not None:
         settings.timeout = timeout
 
-    if not settings.family_members:
-        console.print("[red]Error: No family members configured[/red]")
+    if not settings.participants:
+        console.print("[red]Error: No participants configured[/red]")
         raise typer.Exit(1)
 
-    console.print(f"[green]Registering {len(settings.family_members)} family member(s)[/green]")
-    for member in settings.family_members:
-        console.print(f"  - {member.name}")
+    # Display activity info in a nice panel
+    console.print()
+    info_table = Table(show_header=False, box=None, padding=(0, 2))
+    info_table.add_row("[bold]Domain:[/]", settings.domain)
+    info_table.add_row("[bold]Activity:[/]", settings.activity_name)
+    info_table.add_row("[bold]Participants:[/]", str(len(settings.participants)))
+
+    console.print(
+        Panel(
+            info_table,
+            title="[bold cyan]🎯 Target Activity[/]",
+            border_style="cyan",
+        )
+    )
+
+    # Display participants
+    for participant in settings.participants:
+        console.print(f"  [green]•[/] {participant.name}")
+
+    console.print()
 
     bot = RegistrationBot(settings)
     status = asyncio.run(bot.run())
 
-    if status == RegistrationStatus.SUCCESS:
-        console.print("[green bold]Yé! Registration completed![/green bold]")
-    elif status == RegistrationStatus.ALREADY_ENROLLED:
-        console.print("[yellow]Already enrolled in this activity, câlisse[/yellow]")
-    elif status == RegistrationStatus.INVALID_CREDENTIALS:
-        console.print("[bold red]Invalid credentials - check dossier and NIP[/]")
-        raise typer.Exit(1)
-    elif status == RegistrationStatus.TIMEOUT:
-        console.print("[bold red]Registration timed out[/]")
-        raise typer.Exit(1)
-    else:
-        console.print("[bold red]Ah shit, registration failed[/]")
-        raise typer.Exit(1)
+    console.print()
+
+    match status:
+        case RegistrationStatus.SUCCESS:
+            console.print(
+                Panel("[green bold]🎉 Yé! Registration completed![/]", border_style="green")
+            )
+        case RegistrationStatus.ALREADY_ENROLLED:
+            console.print(
+                Panel(
+                    "[yellow]Already enrolled in this activity, câlisse[/]", border_style="yellow"
+                )
+            )
+        case RegistrationStatus.INVALID_CREDENTIALS:
+            console.print(
+                Panel(
+                    "[bold red]❌ Invalid credentials - check dossier and NIP[/]",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(1)
+        case RegistrationStatus.TIMEOUT:
+            console.print(Panel("[bold red]⏱️ Registration timed out[/]", border_style="red"))
+            raise typer.Exit(1)
+        case _:
+            console.print(Panel("[bold red]💥 Ah shit, registration failed[/]", border_style="red"))
 
 
 if __name__ == "__main__":

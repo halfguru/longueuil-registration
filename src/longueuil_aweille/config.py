@@ -4,8 +4,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class FamilyMember(BaseSettings):
-    name: str = Field(..., description="Family member name for logging")
+class Participant(BaseSettings):
+    name: str = Field(..., description="Participant name for logging")
     dossier: str = Field(..., description="Dossier number")
     nip: str = Field(..., description="NIP (phone number)")
 
@@ -28,7 +28,7 @@ class Settings(BaseSettings):
         default="",
         description="Activity name to search for (e.g., 'Parent-bébé', 'Niveau 1')",
     )
-    family_members: list[FamilyMember] = Field(default_factory=list)
+    participants: list[Participant] = Field(default_factory=list)
 
     @classmethod
     def from_toml(cls, path: Path) -> "Settings":
@@ -37,6 +37,6 @@ class Settings(BaseSettings):
         with path.open("rb") as f:
             data = tomllib.load(f)
 
-        members_data = data.pop("family_members", [])
-        family_members = [FamilyMember(**m) for m in members_data]
-        return cls(**data, family_members=family_members)
+        participants_data = data.pop("participants", [])
+        participants = [Participant(**p) for p in participants_data]
+        return cls(**data, participants=participants)
