@@ -55,6 +55,7 @@ playwright/.local-browsers/
 .env
 config.toml
 notes.txt
+error-*.png
 
 # Old files (to be removed)
 longueuil.py

@@ -270,7 +270,7 @@ wheels = [
 ]
 
 [[package]]
-name = "longueuil-registration"
+name = "longueuil-aweille"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [

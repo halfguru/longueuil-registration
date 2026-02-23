@@ -1,12 +1,19 @@
 [project]
-name = "longueuil-registration"
+name = "longueuil-aweille"
 version = "1.0.0"
-description = "Automate swimming class registration at Longueuil's recreation website"
+description = "Aweille! Auto-register for Longueuil municipal activities before anyone else"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "Simon" }]
-keywords = ["playwright", "automation", "registration", "longueuil", "swimming"]
+keywords = [
+    "playwright",
+    "automation",
+    "registration",
+    "longueuil",
+    "quebec",
+    "activities",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -33,19 +40,19 @@ dev = [
 ]
 
 [project.scripts]
-longueuil = "longueuil_registration.cli:app"
+aweille = "longueuil_aweille.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/simon/longueuil-registration"
-Repository = "https://github.com/simon/longueuil-registration"
-Issues = "https://github.com/simon/longueuil-registration/issues"
+Homepage = "https://github.com/halfguru/longueuil-aweille"
+Repository = "https://github.com/halfguru/longueuil-aweille"
+Issues = "https://github.com/halfguru/longueuil-aweille/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/longueuil_registration"]
+packages = ["src/longueuil_aweille"]
 
 [tool.ruff]
 target-version = "py311"
@@ -53,27 +60,27 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # Pyflakes
-    "I",      # isort
-    "B",      # flake8-bugbear
-    "C4",     # flake8-comprehensions
-    "UP",     # pyupgrade
-    "ARG",    # flake8-unused-arguments
-    "SIM",    # flake8-simplify
-    "TCH",    # flake8-type-checking
-    "PTH",    # flake8-use-pathlib
-    "ERA",    # eradicate
-    "RUF",    # Ruff-specific rules
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate
+    "RUF", # Ruff-specific rules
 ]
 ignore = [
-    "E501",   # line too long (handled by formatter)
-    "B008",   # do not perform function calls in argument defaults
+    "E501", # line too long (handled by formatter)
+    "B008", # do not perform function calls in argument defaults
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["longueuil_registration"]
+known-first-party = ["longueuil_aweille"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -91,7 +98,7 @@ testpaths = ["tests"]
 addopts = "-v --tb=short"
 
 [tool.coverage.run]
-source = ["src/longueuil_registration"]
+source = ["src/longueuil_aweille"]
 branch = true
 
 [tool.coverage.report]
