@@ -1,4 +1,4 @@
-from longueuil_registration.config import FamilyMember, Settings
+from longueuil_aweille.config import FamilyMember, Settings
 
 
 def test_family_member_creation():
@@ -19,9 +19,6 @@ def test_settings_defaults():
 def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("LONGUEUIL_HEADLESS", "true")
     monkeypatch.setenv("LONGUEUIL_TIMEOUT", "300")
-    monkeypatch.setenv("MEMBER_NAME", "John")
-    monkeypatch.setenv("MEMBER_DOSSIER", "12345678901234")
-    monkeypatch.setenv("MEMBER_NIP", "5141112222")
 
     settings = Settings()
     assert settings.headless is True

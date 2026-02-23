@@ -4,7 +4,7 @@ This document provides guidelines for AI coding agents working in this repositor
 
 ## Project Overview
 
-Python automation tool for swimming class registration at Longueuil's recreation website. Uses Playwright for browser automation with a clean CLI interface.
+Python automation tool for Longueuil municipal activities registration. Uses Playwright for browser automation with a clean CLI interface. Named "aweille" from Quebec French meaning "come on / let's go!".
 
 ## Build/Lint/Test Commands
 
@@ -14,28 +14,25 @@ Python automation tool for swimming class registration at Longueuil's recreation
 uv sync
 
 # Install dev dependencies
-uv sync --dev
+uv sync --all-extras
 
 # Install Playwright browsers
 playwright install chromium
-
-# Install using pip
-pip install -e ".[dev]"
 ```
 
 ### Running the Application
 ```bash
 # Run via CLI
-longueuil
+aweille
 
 # Run with uv
-uv run longueuil
+uv run aweille
 
 # Run with options
-uv run longueuil --headless --timeout 300
+uv run aweille --headless --timeout 300
 
 # Run with custom config
-uv run longueuil --config my-config.toml
+uv run aweille --config my-config.toml
 ```
 
 ### Linting and Formatting
@@ -75,7 +72,7 @@ pytest --cov=.
 
 ### Project Structure
 ```
-src/longueuil_registration/
+src/longueuil_aweille/
 ├── __init__.py       # Package init, version
 ├── __main__.py       # CLI entry point
 ├── cli.py            # Typer app export
@@ -126,7 +123,7 @@ str | None          # Not Optional[str]
 ### Error Handling
 - Use specific exception types when possible
 - Log errors with descriptive messages
-- Return bool for success/failure in async methods
+- Return RegistrationStatus enum from main methods
 
 ### Logging
 Use Python's logging module:

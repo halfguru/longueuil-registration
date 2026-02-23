@@ -9,15 +9,15 @@ from .config import Settings
 from .registration import RegistrationBot, RegistrationStatus
 
 app = typer.Typer(
-    name="longueuil-registration",
-    help="Automate swimming class registration at Longueuil's recreation website",
+    name="longueuil-aweille",
+    help="Aweille! Auto-register for Longueuil municipal activities before anyone else",
 )
 console = Console()
 
 
 def version_callback(value: bool) -> None:
     if value:
-        console.print(f"longueuil-registration version {__version__}")
+        console.print(f"longueuil-aweille version {__version__}")
         raise typer.Exit()
 
 
@@ -51,8 +51,8 @@ def register(
         help="Show version and exit",
     ),
 ) -> None:
-    _ = version  # Used via callback
-    """Run the registration bot."""
+    _ = version
+    """Run the registration bot. Aweille!"""
     console.print(f"[blue]Loading config from {config}[/blue]")
     settings = Settings.from_toml(config)
 
@@ -73,9 +73,9 @@ def register(
     status = asyncio.run(bot.run())
 
     if status == RegistrationStatus.SUCCESS:
-        console.print("[green bold]Registration completed![/green bold]")
+        console.print("[green bold]Yé! Registration completed![/green bold]")
     elif status == RegistrationStatus.ALREADY_ENROLLED:
-        console.print("[yellow]Already enrolled in this activity[/yellow]")
+        console.print("[yellow]Already enrolled in this activity, câlisse[/yellow]")
     elif status == RegistrationStatus.INVALID_CREDENTIALS:
         console.print("[bold red]Invalid credentials - check dossier and NIP[/]")
         raise typer.Exit(1)
@@ -83,7 +83,7 @@ def register(
         console.print("[bold red]Registration timed out[/]")
         raise typer.Exit(1)
     else:
-        console.print("[bold red]Registration failed[/]")
+        console.print("[bold red]Ah shit, registration failed[/]")
         raise typer.Exit(1)
 
 
