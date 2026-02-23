@@ -113,6 +113,38 @@ def register(
                 )
             )
             raise typer.Exit(1)
+        case RegistrationStatus.AGE_CRITERIA_NOT_MET:
+            console.print(
+                Panel(
+                    "[bold red]🎂 Age criteria not met - participant too young/old for this activity[/]",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(1)
+        case RegistrationStatus.ACTIVITY_FULL:
+            console.print(
+                Panel(
+                    "[bold red]🎫 Activity is COMPLET (full) - no spots available[/]",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(1)
+        case RegistrationStatus.ACTIVITY_CANCELLED:
+            console.print(
+                Panel(
+                    "[bold red]🚫 Activity is ANNULÉE (cancelled)[/]",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(1)
+        case RegistrationStatus.REGISTRATION_NEVER_AVAILABLE:
+            console.print(
+                Panel(
+                    "[bold red]🔒 Online registration never available for this activity[/]",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(1)
         case RegistrationStatus.TIMEOUT:
             console.print(Panel("[bold red]⏱️ Registration timed out[/]", border_style="red"))
             raise typer.Exit(1)
