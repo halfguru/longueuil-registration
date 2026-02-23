@@ -15,6 +15,10 @@ class RegistrationStatus(Enum):
     SUCCESS = "success"
     ALREADY_ENROLLED = "already_enrolled"
     INVALID_CREDENTIALS = "invalid_credentials"
+    AGE_CRITERIA_NOT_MET = "age_criteria_not_met"
+    ACTIVITY_FULL = "activity_full"
+    ACTIVITY_CANCELLED = "activity_cancelled"
+    REGISTRATION_NEVER_AVAILABLE = "registration_never_available"
     FAILED = "failed"
     TIMEOUT = "timeout"
 
@@ -41,6 +45,7 @@ class RegistrationBot:
     def __init__(self, settings: Settings, selectors: Selectors = DEFAULT_SELECTORS):
         self.settings = settings
         self.selectors = selectors
+        self.last_activity_status: RegistrationStatus | None = None
 
     async def run(self) -> RegistrationStatus:
         logger.info("Starting registration bot...")
@@ -51,23 +56,30 @@ class RegistrationBot:
 
             try:
                 await self._navigate_to_domain(page)
-                success = await self._wait_and_select_activity(page)
+                result = await self._wait_and_select_activity(page)
 
-                if not success:
-                    logger.error("Registration timed out")
-                    return RegistrationStatus.TIMEOUT
+                if result == RegistrationStatus.SUCCESS:
+                    await self._fill_credentials(page)
+                    status = await self._submit(page)
 
-                await self._fill_credentials(page)
-                status = await self._submit(page)
+                    if status == RegistrationStatus.SUCCESS:
+                        logger.info("Registration completed successfully!")
+                    elif status == RegistrationStatus.ALREADY_ENROLLED:
+                        logger.info("Already enrolled in this activity")
+                    elif status == RegistrationStatus.INVALID_CREDENTIALS:
+                        logger.error("Invalid credentials - dossier/NIP not found")
+                    elif status == RegistrationStatus.AGE_CRITERIA_NOT_MET:
+                        logger.error("Age criteria not met for this activity")
 
-                if status == RegistrationStatus.SUCCESS:
-                    logger.info("Registration completed successfully!")
-                elif status == RegistrationStatus.ALREADY_ENROLLED:
-                    logger.info("Already enrolled in this activity")
-                elif status == RegistrationStatus.INVALID_CREDENTIALS:
-                    logger.error("Invalid credentials - dossier/NIP not found")
+                    return status
 
-                return status
+                # Activity not found or not available
+                if self.last_activity_status:
+                    logger.error(f"Activity found but: {self.last_activity_status.value}")
+                    return self.last_activity_status
+
+                logger.error("Registration timed out - activity not found")
+                return RegistrationStatus.TIMEOUT
 
             except Exception as e:
                 logger.error(f"Registration failed: {e}")
@@ -99,34 +111,37 @@ class RegistrationBot:
         await page.wait_for_load_state("networkidle")
         await page.wait_for_timeout(3000)
 
-    async def _wait_and_select_activity(self, page: Page) -> bool:
+    async def _wait_and_select_activity(self, page: Page) -> RegistrationStatus | None:
         logger.info(f"Searching for activity: {self.settings.activity_name}")
         start_time = asyncio.get_running_loop().time()
 
         while asyncio.get_running_loop().time() - start_time < self.settings.timeout:
-            activity_found = await self._find_and_select_activity(page)
+            result = await self._find_and_select_activity(page)
 
-            if activity_found:
+            if result == RegistrationStatus.SUCCESS:
                 logger.info("Activity found and selected!")
-                return True
+                return result
 
             logger.info("Activity not available yet, refreshing...")
             await asyncio.sleep(self.settings.refresh_interval)
             await page.reload(wait_until="networkidle")
             await page.wait_for_timeout(2000)
 
-        return False
+        return None
 
-    async def _find_and_select_activity(self, page: Page) -> bool:
-        if await self._try_select_on_page(page):
-            return True
+    async def _find_and_select_activity(self, page: Page) -> RegistrationStatus | None:
+        result = await self._try_select_on_page(page)
+        if result == RegistrationStatus.SUCCESS:
+            return result
+        if result is not None:
+            self.last_activity_status = result
 
         page_links = page.locator("a[id*='ctlLienPage']")
         num_pages = await page_links.count()
         logger.info(f"Found {num_pages} pagination links")
 
         if num_pages == 0:
-            return False
+            return None
 
         logger.info(f"Checking {num_pages} pages for activity...")
 
@@ -139,12 +154,15 @@ class RegistrationBot:
             await page.wait_for_load_state("networkidle")
             await page.wait_for_timeout(2000)
 
-            if await self._try_select_on_page(page):
-                return True
+            result = await self._try_select_on_page(page)
+            if result == RegistrationStatus.SUCCESS:
+                return result
+            if result is not None:
+                self.last_activity_status = result
 
-        return False
+        return None
 
-    async def _try_select_on_page(self, page: Page) -> bool:
+    async def _try_select_on_page(self, page: Page) -> RegistrationStatus | None:
         activity_name = self.settings.activity_name
 
         activity_elements = page.get_by_text(activity_name, exact=False)
@@ -160,9 +178,26 @@ class RegistrationBot:
             if btn_count > 0:
                 btn = select_btn.first
                 src = await btn.get_attribute("src") or ""
+                alt = await btn.get_attribute("alt") or ""
+
+                # Check for "Inscription en ligne jamais disponible"
+                if "jamais disponible" in alt.lower() or "JamaisDispo" in src:
+                    logger.info("Activity found but online registration never available")
+                    return RegistrationStatus.REGISTRATION_NEVER_AVAILABLE
+
+                # Check if activity is marked as COMPLET or ANNULÉE in the row
+                row_content = await parent_row.inner_text()
+                if "COMPLET" in row_content.upper():
+                    logger.info("Activity found but is COMPLET (full)")
+                    return RegistrationStatus.ACTIVITY_FULL
+                if "ANNULÉE" in row_content.upper():
+                    logger.info("Activity found but is ANNULÉE (cancelled)")
+                    return RegistrationStatus.ACTIVITY_CANCELLED
+
+                # Check button indicates not available
                 if "NotNow" in src or "Complet" in src:
                     logger.info(f"Found activity but not available: {src}")
-                    return False
+                    return RegistrationStatus.FAILED
 
                 logger.info("Found activity, clicking select button...")
                 await btn.click()
@@ -172,9 +207,9 @@ class RegistrationBot:
                 await page.locator(self.selectors.cart_button).click()
                 await page.wait_for_load_state("networkidle")
 
-                return True
+                return RegistrationStatus.SUCCESS
 
-        return False
+        return None
 
     async def _fill_credentials(self, page: Page) -> None:
         logger.info("Filling credentials...")
@@ -205,6 +240,10 @@ class RegistrationBot:
         if "Aucun dossier" in page_content or "n'a été retrouvé" in page_content:
             logger.error("Invalid credentials - dossier not found")
             return RegistrationStatus.INVALID_CREDENTIALS
+
+        if "critère d'âge" in page_content or "ne répond pas au critère" in page_content:
+            logger.error("Age criteria not met for this activity")
+            return RegistrationStatus.AGE_CRITERIA_NOT_MET
 
         if "Erreur" in page_content or "error" in page_content.lower():
             logger.error("Error detected on page")
