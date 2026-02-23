@@ -6,7 +6,7 @@ from rich.console import Console
 
 from . import __version__
 from .config import Settings
-from .registration import RegistrationBot
+from .registration import RegistrationBot, RegistrationStatus
 
 app = typer.Typer(
     name="longueuil-registration",
@@ -70,10 +70,18 @@ def register(
         console.print(f"  - {member.name}")
 
     bot = RegistrationBot(settings)
-    success = asyncio.run(bot.run())
+    status = asyncio.run(bot.run())
 
-    if success:
+    if status == RegistrationStatus.SUCCESS:
         console.print("[green bold]Registration completed![/green bold]")
+    elif status == RegistrationStatus.ALREADY_ENROLLED:
+        console.print("[yellow]Already enrolled in this activity[/yellow]")
+    elif status == RegistrationStatus.INVALID_CREDENTIALS:
+        console.print("[bold red]Invalid credentials - check dossier and NIP[/]")
+        raise typer.Exit(1)
+    elif status == RegistrationStatus.TIMEOUT:
+        console.print("[bold red]Registration timed out[/]")
+        raise typer.Exit(1)
     else:
         console.print("[bold red]Registration failed[/]")
         raise typer.Exit(1)
