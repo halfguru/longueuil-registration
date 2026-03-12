@@ -1,54 +1,32 @@
-# longueuil-aweille 🏛️
-
-[![Longueuil](https://img.shields.io/badge/Longueuil-Québec-blue)](https://longueuil.quebec)
+# longueuil-aweille
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-1.40%2B-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/python/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![GitHub](https://img.shields.io/badge/GitHub-halfguru%2Flongueuil--aweille-black?logo=github)](https://github.com/halfguru/longueuil-aweille)
 
-> **Aweille!** Tanné de cliquer F5 comme un fou pour inscrire tes kids aux activités municipales de Longueuil? Calmez-vous, on a la solution!
+Automate municipal activity registration for the City of Longueuil recreation website. Avoid manual page refreshing and never miss a spot again.
 
-Automate municipal activity registration at Longueuil's recreation website using Playwright. No more F5 warrior life, no more missing spots because you blinked.
-
-## Pourquoi?
-
-Vous connaissez le drill:
-- 🕐 L'inscription ouvre à minuit
-- 😰 Vous êtes 47 personnes sur la même page
-- 💀 La classe est complète en 30 secondes
-- 🤬 Vous restez sur une erreur 500
-
-**Aweille!** Laissez le bot faire le travail pendant vous prenez un bon café (ou une bière, on juge pas).
+> **Aweille!** — "Hurry up!" in Quebec French. Because spots vanish in seconds.
 
 ## Features
 
-- 🎯 Auto-register for any municipal activity (swimming, art, sports, whatever)
-- 👥 Support for multiple participants
-- 🔄 Auto-retry when registration isn't open yet
-- 📝 Simple TOML configuration
-- 🖥️ CLI with rich output
-- 🇶🇦 Optional Quebec French vibes
+- Auto-register for any municipal activity (swimming, art, sports, etc.)
+- Credential verification before registration
+- Multiple participant support
+- Auto-retry when registration is not yet open
+- Simple TOML configuration
+- CLI with rich output
 
 ## Installation
 
 ```bash
-# Using uv (recommended, like everything in 2025)
 uv sync
-
-# Using pip (old school)
-pip install -e .
-```
-
-Install Playwright browsers:
-
-```bash
-playwright install chromium
+uv run playwright install chromium
 ```
 
 ## Configuration
 
-Create a `config.toml` file with your details:
+Create a `config.toml` file:
 
 ```toml
 headless = false
@@ -59,8 +37,9 @@ activity_name = "Parent-bébé"
 
 [[participants]]
 name = "Votre Enfant"
-dossier = "01234567890123"
-nip = "5145551234"
+carte_acces = "01234567890123"
+telephone = "5145551234"
+age = 5
 ```
 
 ### Configuration Options
@@ -72,40 +51,49 @@ nip = "5145551234"
 | `refresh_interval` | Seconds between page refreshes | `5.0` |
 | `domain` | Activity domain/category | Required |
 | `activity_name` | Activity name to search for | Required |
-| `participants` | List of participants to register | Required |
+| `participants` | List of participants | Required |
+
+### Participant Options
+
+| Option | Description |
+|--------|-------------|
+| `name` | Participant name for logging |
+| `carte_acces` | Numéro de carte d'accès (14 digits) |
+| `telephone` | Numéro de téléphone (10 digits) |
+| `age` | Participant age for validation |
 
 ### Finding Your Domain and Activity
 
 1. Visit the [Longueuil registration site](https://loisir.longueuil.quebec/inscription/)
-2. Click "Domaines" tab to see available domains
-3. Search and note the exact activity name you want
+2. Click "Domaines" to see available categories
+3. Note the exact activity name you want
 
 ## Usage
 
-### Basic Usage
-
 ```bash
-# Run with config.toml
-aweille
+# Run registration (verifies credentials by default)
+uv run aweille register
 
-# Or with uv
-uv run aweille
-```
+# Skip credential verification
+uv run aweille register --no-verify
 
-### CLI Options
+# Run in headless mode
+uv run aweille register --headless
 
-```bash
-# Show help
-aweille --help
+# Custom timeout and config
+uv run aweille register --timeout 300 --config my-config.toml
 
-# Run in headless mode (background)
-aweille --headless
+# Verify credentials separately
+uv run aweille verify --carte 01234567890123 --tel 5145551234
 
-# Custom timeout
-aweille --timeout 300
+# Browse available activities
+uv run aweille browse
 
-# Custom config file
-aweille --config my-config.toml
+# Browse with filters
+uv run aweille browse --domain "Activités aquatiques" --available --age 5
+
+# Browse by day and location
+uv run aweille browse --day samedi --location "Vieux-Longueuil"
 ```
 
 ### Programmatic Usage
@@ -113,12 +101,17 @@ aweille --config my-config.toml
 ```python
 import asyncio
 from longueuil_aweille import Settings, RegistrationBot
+from longueuil_aweille.registration import RegistrationStatus
 
 async def main():
     settings = Settings.from_toml("config.toml")
     bot = RegistrationBot(settings)
     status = await bot.run()
-    print("Yé!" if status == "success" else "Ah shit")
+    
+    if status == RegistrationStatus.SUCCESS:
+        print("Registration completed")
+    else:
+        print(f"Registration failed: {status.value}")
 
 asyncio.run(main())
 ```
@@ -126,32 +119,31 @@ asyncio.run(main())
 ## How It Works
 
 1. Opens the Longueuil recreation website
-2. Selects your domain (activity category)
+2. Selects the configured domain (activity category)
 3. Searches for the activity by name across all pages
-4. Waits for registration to open (refreshing periodically like you would manually)
-5. Snatches the spot when it becomes available
-6. Fills in dossier and NIP credentials
+4. Waits for registration to open (refreshes periodically)
+5. Registers when the spot becomes available
+6. Fills in participant credentials
 7. Submits the registration
-8. Profit 🎉
 
-## Status Messages
+## Status Codes
 
-The bot will tell you what happened:
-- ✅ `Yé! Registration completed!` - Spot secured, félicitations!
-- ⚠️ `Already enrolled` - You're already in, calmez-vous
-- ❌ `Invalid credentials` - Check your dossier/NIP, something's wrong
-- ⏱️ `Timed out` - Registration never opened, try again next season
+| Status | Description |
+|--------|-------------|
+| `SUCCESS` | Registration completed successfully |
+| `ALREADY_ENROLLED` | Participant already registered |
+| `INVALID_CREDENTIALS` | Carte d'accès or téléphone incorrect |
+| `AGE_CRITERIA_NOT_MET` | Participant outside age range |
+| `ACTIVITY_FULL` | No spots available |
+| `ACTIVITY_CANCELLED` | Activity was cancelled |
+| `REGISTRATION_NEVER_AVAILABLE` | Online registration not offered |
+| `TIMEOUT` | Registration never opened within timeout |
+| `FAILED` | Unexpected error |
 
 ## Disclaimer
 
-This tool is for personal use to automate a tedious manual process that everyone does anyway. Use responsibly and in accordance with the website's terms of service.
-
-On est pas responsables si:
-- Le site change
-- Ça bug
-- Vous vous faites bannir (unlikely mais bon)
-- Votre enfant décide finalement qu'il aime pas la natation
+This tool is for personal use to automate a tedious manual process. Use responsibly and in accordance with the website's terms of service.
 
 ## License
 
-MIT - Faites-en bon usage, tabarnak!
+MIT

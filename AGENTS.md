@@ -1,174 +1,112 @@
 # AGENTS.md - Coding Agent Guidelines
 
-This document provides guidelines for AI coding agents working in this repository.
+## Workflow Orchestration
 
-## Project Overview
+### 1. Plan Mode Default
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately - don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
 
-Python automation tool for Longueuil municipal activities registration. Uses Playwright for browser automation with a clean CLI interface. Named "aweille" from Quebec French meaning "come on / let's go!".
+### 2. Self-Improvement Loop
+- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
+
+### 3. Verification Before Done
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
+
+### 4. Demand Elegance (Balanced)
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes - don't over-engineer
+- Challenge your own work before presenting it
+
+### 5. Autonomous Bug Fixing
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
+
+## Task Management
+
+1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Add review section to plan `tasks/todo.md`
+6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+
+## Core Principles
+
+- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+See README.md for project details.
 
 ## Build/Lint/Test Commands
 
 ### Setup
 ```bash
-# Install dependencies using uv (recommended)
+# Install dependencies using uv
 uv sync
 
 # Install dev dependencies
 uv sync --all-extras
 
 # Install Playwright browsers
-playwright install chromium
+uv run playwright install chromium
+
+# Configure git hooks
+git config core.hooksPath .githooks
 ```
 
 ### Running the Application
 ```bash
-# Run via CLI
-aweille
+# Run registration
+uv run aweille register
 
-# Run with uv
-uv run aweille
+# Verify credentials
+uv run aweille verify --carte 01234567890123 --tel 5145551234
 
 # Run with options
-uv run aweille --headless --timeout 300
+uv run aweille register --headless --timeout 300
 
 # Run with custom config
-uv run aweille --config my-config.toml
+uv run aweille register --config my-config.toml
 ```
 
 ### Linting and Formatting
 ```bash
 # Format code with ruff
-ruff format .
+uv run ruff format .
 
 # Lint with ruff
-ruff check .
+uv run ruff check .
 
 # Lint and auto-fix
-ruff check . --fix
+uv run ruff check . --fix
 
 # Type checking
-mypy src
+uv run mypy src
 ```
 
 ### Testing
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run a single test file
-pytest tests/test_config.py
-
-# Run a single test function
-pytest tests/test_config.py::test_family_member_creation
+uv run pytest tests/test_config.py
 
 # Run with verbose output
-pytest -v
+uv run pytest -v
 
 # Run with coverage
-pytest --cov=.
+uv run pytest --cov=.
 ```
-
-## Code Style Guidelines
-
-### Project Structure
-```
-src/longueuil_aweille/
-├── __init__.py       # Package init, version
-├── __main__.py       # CLI entry point
-├── cli.py            # Typer app export
-├── config.py         # Pydantic settings
-└── registration.py   # Bot implementation
-
-tests/
-├── __init__.py
-└── test_config.py    # Config tests
-```
-
-### Imports
-```python
-# Standard library first
-import asyncio
-import logging
-from pathlib import Path
-
-# Third-party second
-from playwright.async_api import async_playwright
-from pydantic import Field
-from pydantic_settings import BaseSettings
-
-# Local imports last
-from .config import Settings
-```
-
-### Type Hints
-Always use type hints. Use modern Python syntax:
-```python
-list[FamilyMember]  # Not List[FamilyMember]
-dict[str, int]      # Not Dict[str, int]
-str | None          # Not Optional[str]
-```
-
-### Naming Conventions
-- **Modules**: snake_case (`registration.py`, `config.py`)
-- **Classes**: PascalCase (`RegistrationBot`, `FamilyMember`)
-- **Functions/Methods**: snake_case (`wait_for_availability`, `fill_credentials`)
-- **Constants**: UPPER_SNAKE_CASE (`DEFAULT_SELECTORS`, `TIMEOUT`)
-- **Private methods**: prefix underscore (`_navigate_and_search`)
-
-### Configuration
-- Configuration via TOML file only (`config.toml`)
-- Family members as list of nested models
-- All settings have sensible defaults
-
-### Error Handling
-- Use specific exception types when possible
-- Log errors with descriptive messages
-- Return RegistrationStatus enum from main methods
-
-### Logging
-Use Python's logging module:
-```python
-logger = logging.getLogger(__name__)
-logger.info("Starting registration...")
-logger.error(f"Failed: {e}")
-```
-
-### Comments
-- No inline comments explaining obvious code
-- Docstrings for public functions/classes
-- Comments explain "why", not "what"
-
-### Web Automation Best Practices
-1. Use explicit waits, not arbitrary sleeps when possible
-2. Small delays between actions to avoid overwhelming server
-3. Always clean up browser in finally block
-4. Log key actions for debugging
-5. Use CSS selectors over XPaths
-
-### Security
-- Never commit `config.toml` (in .gitignore)
-- No hardcoded credentials in source code
-
-## File Patterns
-
-### Adding a new CLI command
-1. Add function in `__main__.py` decorated with `@app.command()`
-2. Use typer options for arguments
-3. Use rich console for output
-
-### Adding new configuration
-1. Add field to `Settings` or create new pydantic model
-2. Update `config.toml` with the new field
-
-## Dependencies
-
-Core:
-- `playwright` - Browser automation
-- `pydantic` / `pydantic-settings` - Configuration
-- `typer` - CLI framework
-- `rich` - Terminal output
-
-Dev:
-- `pytest` / `pytest-asyncio` - Testing
-- `ruff` - Linting and formatting
-- `mypy` - Type checking

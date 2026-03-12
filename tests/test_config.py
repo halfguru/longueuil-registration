@@ -2,10 +2,13 @@ from longueuil_aweille.config import Participant, Settings
 
 
 def test_participant_creation():
-    participant = Participant(name="Test", dossier="01234567890123", nip="5145551234")
+    participant = Participant(
+        name="Test", carte_acces="01234567890123", telephone="5145551234", age=30
+    )
     assert participant.name == "Test"
-    assert participant.dossier == "01234567890123"
-    assert participant.nip == "5145551234"
+    assert participant.carte_acces == "01234567890123"
+    assert participant.telephone == "5145551234"
+    assert participant.age == 30
 
 
 def test_settings_defaults():
@@ -30,7 +33,9 @@ def test_settings_custom_values():
         headless=True,
         timeout=120,
         participants=[
-            Participant(name="Participant 1", dossier="11111111111111", nip="5141111111"),
+            Participant(
+                name="Participant 1", carte_acces="11111111111111", telephone="5141111111", age=25
+            ),
         ],
     )
     assert settings.headless is True
