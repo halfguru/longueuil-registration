@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+echo "Running ruff format..."
+uv run ruff format .
+
+echo "Running ruff check..."
+uv run ruff check . --fix
+
+# Re-stage any modified files
+git diff --quiet || git add -u
+
+echo "Pre-commit checks passed"

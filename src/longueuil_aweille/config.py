@@ -6,8 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Participant(BaseSettings):
     name: str = Field(..., description="Participant name for logging")
-    dossier: str = Field(..., description="Dossier number")
-    nip: str = Field(..., description="NIP (phone number)")
+    age: int = Field(..., description="Participant age for validation")
+    carte_acces: str = Field(..., description="Numéro de carte d'accès")
+    telephone: str = Field(..., description="Numéro de téléphone")
 
 
 class Settings(BaseSettings):

@@ -1,42 +1,54 @@
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 
 from playwright.async_api import Page, async_playwright
 
 from .config import Settings
+from .status import (
+    ActivityStatus,
+    RegistrationStatus,
+    get_status_from_image_src,
+    iterate_pagination,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class RegistrationStatus(Enum):
-    SUCCESS = "success"
-    ALREADY_ENROLLED = "already_enrolled"
-    INVALID_CREDENTIALS = "invalid_credentials"
-    AGE_CRITERIA_NOT_MET = "age_criteria_not_met"
-    ACTIVITY_FULL = "activity_full"
-    ACTIVITY_CANCELLED = "activity_cancelled"
-    REGISTRATION_NEVER_AVAILABLE = "registration_never_available"
-    FAILED = "failed"
-    TIMEOUT = "timeout"
+@dataclass
+class ActivityInfo:
+    name: str = ""
+    age_min: int = 0
+    age_max: int = 150
+    registration_start: str = ""
+    registration_end: str = ""
+    status: ActivityStatus = ActivityStatus.AVAILABLE
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
 class Selectors:
+    keyword_search: str
+    search_option_or: str
+    available_only_radio: str
     search_button: str
     cart_button: str
     dossier_input_template: str
     nip_input_template: str
+    unregister_button_template: str
     validate_button: str
 
 
 DEFAULT_SELECTORS = Selectors(
+    keyword_search="#ctlBlocRecherche_ctlMotsCles_ctlMotsCle",
+    search_option_or="#ctlBlocRecherche_ctlMotsCles_ctlOptionOU",
+    available_only_radio="input[name*='ctlSelDisponibilite'][value='ctlDispoSeulement']",
     search_button="#ctlBlocRecherche_ctlRechercher",
     cart_button="#ctlGrille_ctlMenuActionsBas_ctlAppelPanierIdent",
     dossier_input_template="#ctlPanierActivites_ctlActivites_ctl{i:02d}_ctlRow_ctlListeIdentification_ctlListe_itm0_ctlBloc_ctlDossier",
     nip_input_template="#ctlPanierActivites_ctlActivites_ctl{i:02d}_ctlRow_ctlListeIdentification_ctlListe_itm0_ctlBloc_ctlNip",
+    unregister_button_template="#ctlPanierActivites_ctlActivites_ctl{i:02d}_ctlRow_ctlListeIdentification_ctlListe_itm0_ctlBloc_ctlMoins",
     validate_button="#ctlMenuActionBas_ctlAppelPanierConfirm",
 )
 
@@ -55,7 +67,7 @@ class RegistrationBot:
             page = await context.new_page()
 
             try:
-                await self._navigate_to_domain(page)
+                await self._navigate_to_search(page)
                 result = await self._wait_and_select_activity(page)
 
                 if result == RegistrationStatus.SUCCESS:
@@ -64,6 +76,13 @@ class RegistrationBot:
 
                     if status == RegistrationStatus.SUCCESS:
                         logger.info("Registration completed successfully!")
+                        should_unregister = await self._prompt_unregister()
+                        if should_unregister:
+                            unregistered = await self._unregister_participants(page)
+                            if unregistered:
+                                logger.info("Unregistered from activity")
+                                await page.wait_for_timeout(500)
+                                return RegistrationStatus.UNREGISTERED
                     elif status == RegistrationStatus.ALREADY_ENROLLED:
                         logger.info("Already enrolled in this activity")
                     elif status == RegistrationStatus.INVALID_CREDENTIALS:
@@ -73,7 +92,6 @@ class RegistrationBot:
 
                     return status
 
-                # Activity not found or not available
                 if self.last_activity_status:
                     logger.error(f"Activity found but: {self.last_activity_status.value}")
                     return self.last_activity_status
@@ -90,32 +108,48 @@ class RegistrationBot:
             finally:
                 await browser.close()
 
-    async def _navigate_to_domain(self, page: Page) -> None:
+    async def _navigate_to_search(self, page: Page) -> None:
         logger.info("Opening registration website...")
         await page.goto(self.settings.registration_url, wait_until="networkidle")
 
-        logger.info("Opening Domaines tab...")
-        await page.get_by_role("link", name="Domaines").click()
-        await page.wait_for_timeout(1000)
+        logger.info("Selecting 'available only' filter...")
+        await page.get_by_role("link", name="Disponibilités").click()
+        await page.wait_for_timeout(300)
+        await page.locator(self.selectors.available_only_radio).click()
+        await page.wait_for_timeout(300)
 
-        logger.info(f"Selecting domain: {self.settings.domain}")
-        domain = self.settings.domain
-        checkbox = page.locator(
-            f"//*[contains(text(), '{domain}')]/preceding::input[@type='checkbox'][1]"
-        )
-        await checkbox.first.click()
-        await page.wait_for_timeout(1000)
+        logger.info(f"Searching for activity: {self.settings.activity_name}")
+        await page.locator(self.selectors.keyword_search).fill(self.settings.activity_name)
+        await page.locator(self.selectors.search_option_or).click()
+        await page.wait_for_timeout(300)
+
+        if self.settings.domain:
+            logger.info("Opening Domaines tab...")
+            await page.get_by_role("link", name="Domaines").click()
+            await page.wait_for_timeout(500)
+
+            logger.info(f"Selecting domain: {self.settings.domain}")
+            checkbox = page.locator(
+                f"//*[contains(text(), '{self.settings.domain}')]/preceding::input[@type='checkbox'][1]"
+            )
+            await checkbox.first.click()
+            await page.wait_for_timeout(300)
 
         logger.info("Clicking search button...")
         await page.locator(self.selectors.search_button).click()
         await page.wait_for_load_state("networkidle")
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(1000)
 
     async def _wait_and_select_activity(self, page: Page) -> RegistrationStatus | None:
         logger.info(f"Searching for activity: {self.settings.activity_name}")
         start_time = asyncio.get_running_loop().time()
+        attempts = 0
 
         while asyncio.get_running_loop().time() - start_time < self.settings.timeout:
+            attempts += 1
+            elapsed = int(asyncio.get_running_loop().time() - start_time)
+            logger.info(f"Attempt #{attempts} (elapsed: {elapsed}s)")
+
             result = await self._find_and_select_activity(page)
 
             if result == RegistrationStatus.SUCCESS:
@@ -136,31 +170,15 @@ class RegistrationBot:
         if result is not None:
             self.last_activity_status = result
 
-        page_links = page.locator("a[id*='ctlLienPage']")
-        num_pages = await page_links.count()
-        logger.info(f"Found {num_pages} pagination links")
-
-        if num_pages == 0:
+        async def try_page(p: Page) -> RegistrationStatus | None:
+            r = await self._try_select_on_page(p)
+            if r == RegistrationStatus.SUCCESS:
+                return r
+            if r is not None:
+                self.last_activity_status = r
             return None
 
-        logger.info(f"Checking {num_pages} pages for activity...")
-
-        for i in range(num_pages):
-            page_links = page.locator("a[id*='ctlLienPage']")
-            if i >= await page_links.count():
-                break
-
-            await page_links.nth(i).click()
-            await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(2000)
-
-            result = await self._try_select_on_page(page)
-            if result == RegistrationStatus.SUCCESS:
-                return result
-            if result is not None:
-                self.last_activity_status = result
-
-        return None
+        return await iterate_pagination(page, try_page)
 
     async def _try_select_on_page(self, page: Page) -> RegistrationStatus | None:
         activity_name = self.settings.activity_name
@@ -180,12 +198,11 @@ class RegistrationBot:
                 src = await btn.get_attribute("src") or ""
                 alt = await btn.get_attribute("alt") or ""
 
-                # Check for "Inscription en ligne jamais disponible"
-                if "jamais disponible" in alt.lower() or "JamaisDispo" in src:
+                status = get_status_from_image_src(src, alt)
+                if status == ActivityStatus.NEVER_AVAILABLE:
                     logger.info("Activity found but online registration never available")
                     return RegistrationStatus.REGISTRATION_NEVER_AVAILABLE
 
-                # Check if activity is marked as COMPLET or ANNULÉE in the row
                 row_content = await parent_row.inner_text()
                 if "COMPLET" in row_content.upper():
                     logger.info("Activity found but is COMPLET (full)")
@@ -194,9 +211,8 @@ class RegistrationBot:
                     logger.info("Activity found but is ANNULÉE (cancelled)")
                     return RegistrationStatus.ACTIVITY_CANCELLED
 
-                # Check button indicates not available
-                if "NotNow" in src or "Complet" in src:
-                    logger.info(f"Found activity but not available: {src}")
+                if status == ActivityStatus.NOT_YET or status == ActivityStatus.FULL:
+                    logger.info(f"Found activity but not available: {status.value}")
                     return RegistrationStatus.FAILED
 
                 logger.info("Found activity, clicking select button...")
@@ -217,9 +233,38 @@ class RegistrationBot:
             dossier_selector = self.selectors.dossier_input_template.format(i=i)
             nip_selector = self.selectors.nip_input_template.format(i=i)
 
-            await page.locator(dossier_selector).fill(participant.dossier)
-            await page.locator(nip_selector).fill(participant.nip)
+            await page.locator(dossier_selector).fill(participant.carte_acces)
+            await page.locator(nip_selector).fill(participant.telephone)
             await asyncio.sleep(0.1)
+
+    async def _unregister_participants(self, page: Page) -> bool:
+        logger.info("Unregistering participants from cart...")
+        for i in range(len(self.settings.participants)):
+            unregister_selector = self.selectors.unregister_button_template.format(i=i)
+            unregister_btn = page.locator(unregister_selector)
+            if await unregister_btn.count() > 0:
+                await unregister_btn.first.click()
+                await page.wait_for_timeout(300)
+
+                confirm_btn = page.locator("input#OUI[value='OUI']")
+                if await confirm_btn.count() > 0:
+                    await confirm_btn.click()
+                    await page.wait_for_timeout(500)
+                    logger.info(f"Unregistered participant {i}")
+
+        page_content = await page.locator("body").inner_text()
+        if "Nouveau tarif ajusté : N/A" in page_content:
+            logger.info("Unregistration confirmed - tariff shows N/A")
+            return True
+        return False
+
+    async def _prompt_unregister(self) -> bool:
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: input("Registration successful! Unregister? [y/N]: ").strip().lower(),
+        )
+        return response in ("y", "yes")
 
     async def _submit(self, page: Page) -> RegistrationStatus:
         logger.info("Submitting registration...")
